@@ -51,15 +51,17 @@ void Make_SRIM::Loop()
   int z_min_gap=0;
   int ncr_plane=ncr_per_um*ncr_per_um;
   float volume = 4*lim_nbin1*lim_nbin1*zstep*nlayers;
-  float cut_eff=0.9;
+  float cut_eff=1;
 
   Double_t pi = TMath::Pi();
   ofstream log("sphere_coordinates.txt");
   ofstream log_trk("tracks.txt");
   ofstream log_ell("ell.txt");
+  ofstream log_cr("crystals.txt");
   log.is_open();
   log_trk.is_open();
   log_ell.is_open();
+  log_cr.is_open();
 
   TCanvas *cc = new TCanvas("cc","cc",600,600);
   TCanvas *ccb = new TCanvas("ccb","ccb",600,600);
@@ -748,6 +750,7 @@ void Make_SRIM::Loop()
 	     }
 	     
 	   }
+	   log_cr << i << " " << k << " " << z_pos.at(tmp_cr.at(k)) << " " << y_pos.at(tmp_cr.at(k)) << " " << x_pos.at(tmp_cr.at(k)) << " " << radius.at(tmp_cr.at(k)) << endl;
 	 }
 
 	 dist_line=0;
@@ -785,6 +788,7 @@ void Make_SRIM::Loop()
 	     minor = tmp_major;
 	     major = tmp_minor;
 	   }
+	  
 	 }
 
 	 phi_nit = atan((z2-z1)/(y2-y1));
@@ -849,6 +853,7 @@ void Make_SRIM::Loop()
    log.close();
    log_trk.close();
    log_ell.close();
+   log_cr.close();
    cout << "Volume totale dei cristalli " << tot_vol << endl;
    cout << "Volume a disposizione " << volume << endl;
    cout << "No crystal sensitized "<< not_sensitive << endl;
