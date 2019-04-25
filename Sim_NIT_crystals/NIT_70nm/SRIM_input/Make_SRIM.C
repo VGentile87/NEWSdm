@@ -51,7 +51,7 @@ void Make_SRIM::Loop()
   int z_min_gap=0;
   int ncr_plane=ncr_per_um*ncr_per_um;
   float volume = 4*lim_nbin1*lim_nbin1*zstep*nlayers;
-  float cut_eff=1;
+  float cut_eff=0.9;
 
   Double_t pi = TMath::Pi();
   ofstream log("sphere_coordinates.txt");
@@ -83,7 +83,7 @@ void Make_SRIM::Loop()
   TH1F *h_nolen = new TH1F("no_len","no_len",100,0.,1000);
   TH1F *h_sens_len = new TH1F("sens_len","sens_len",100,0.,1000);
 
- 
+  TH1F *h_dist = new TH1F("h_dist","dist",100,0.,1000);
 
   TH2F *hgrid1 = new TH2F("grid1","grid1",ncr_per_um,-lim_nbin1,lim_nbin1,ncr_per_um,-lim_nbin1,lim_nbin1);
   TH2F *hgrid2 = new TH2F("grid2","grid2",nbin2,-lim_nbin2,lim_nbin2,nbin2,-lim_nbin2,lim_nbin2);
@@ -396,6 +396,7 @@ void Make_SRIM::Loop()
     tmp_min_dist=1000;
     for(int j=(i+1);j<x_pos.size();j++){
       tmp_min_dist = sqrt(pow(z_pos.at(j)-z_pos.at(i),2)+pow(y_pos.at(j)-y_pos.at(i),2)+pow(x_pos.at(j)-x_pos.at(i),2));
+      h_dist->Fill(tmp_min_dist);
       if(tmp_min_dist < (radius.at(i)+radius.at(j)))cout << i << " " << j << " " << (tmp_min_dist-(radius.at(i)+radius.at(j))) << " " << x_pos.at(j) << " " << x_pos.at(i) <<  " overlap_z " << " " << radius.at(i) << " " << radius.at(j) << endl;
     }
     if(i==1){
@@ -862,7 +863,9 @@ void Make_SRIM::Loop()
    //log.close();
    //Tree_out->Write();
 
-    
+
+   TCanvas *c0 = new TCanvas("c0","c0",600,600);
+   h_dist->Draw("");
    
    TCanvas *c1 = new TCanvas("c1","c1",600,600);
    c1->Divide(2,2);
