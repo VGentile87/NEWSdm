@@ -1,0 +1,24 @@
+// point2d.h
+#ifndef DMPlsAnalyzer_H
+#define DMPlsAnalyzer_H
+
+#include <TVectorD.h>
+#include <TGraph.h>
+#include <iostream>
+#include <vector>
+
+using namespace std;
+
+/*namespace DMPlsAnalyzer {
+	class Plasmon;
+}*/
+class DMPlsAnalyzer
+{
+ public:
+  TVectorD fit_ellipse(TGraph *g);
+
+ private:
+  double x;
+  double y;
+};
+#endif // DMPlsAnalyzer_H

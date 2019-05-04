@@ -1,0 +1,105 @@
+#include "DMPlsFuncImages.h"
+#include "TMatrixDEigen.h"
+#include <cmath>
+#include <iostream>
+#include <vector>
+using namespace std;
+
+TVectorD DMPlsFuncImages::fit_ellipse(TGraph *g)
+{
+  TVectorD ellipse;
+  
+  if (!g) return ellipse; // just a precaution
+  if (g->GetN() < 6) return ellipse; // just a precaution
+  
+  Int_t i;
+  Double_t tmp;
+  
+  Int_t N = g->GetN();
+  Double_t xmin, xmax, ymin, ymax, X0, Y0;
+  g->ComputeRange(xmin, ymin, xmax, ymax);
+#if 1 /* 0 or 1 */
+  X0 = (xmax + xmin) / 2.0;
+  Y0 = (ymax + ymin) / 2.0;
+#else /* 0 or 1 */
+  X0 = Y0 = 0.0;
+#endif /* 0 or 1 */
+
+  TMatrixD D1(N, 3); // quadratic part of the design matrix
+  TMatrixD D2(N, 3); // linear part of the design matrix
+
+  for (i = 0; i < N; i++) {
+    Double_t x = (g->GetX())[i] - X0;
+    Double_t y = (g->GetY())[i] - Y0;
+    D1[i][0] = x * x;
+    D1[i][1] = x * y;
+    D1[i][2] = y * y;
+    D2[i][0] = x;
+    D2[i][1] = y;
+    D2[i][2] = 1.0;
+  }
+
+  // quadratic part of the scatter matrix
+  TMatrixD S1(TMatrixD::kAtA, D1);
+  // combined part of the scatter matrix
+  TMatrixD S2(D1, TMatrixD::kTransposeMult, D2);
+  // linear part of the scatter matrix
+  TMatrixD S3(TMatrixD::kAtA, D2);
+  S3.Invert(&tmp); S3 *= -1.0;
+  if (tmp == 0.0) {
+    std::cout << "fit_ellipse : linear part of the scatter matrix is singular!" << std::endl;
+    return ellipse;
+  }
+  // for getting a2 from a1
+  TMatrixD T(S3, TMatrixD::kMultTranspose, S2);
+  // reduced scatter matrix
+  TMatrixD M(S2, TMatrixD::kMult, T); M += S1;
+  // premultiply by inv(C1)
+  for (i = 0; i < 3; i++) {
+    tmp = M[0][i] / 2.0;
+    M[0][i] = M[2][i] / 2.0;
+    M[2][i] = tmp;
+    M[1][i] *= -1.0;
+  }
+  // solve eigensystem
+  TMatrixDEigen eig(M); // note: eigenvectors are not normalized
+  const TMatrixD &evec = eig.GetEigenVectors();
+  // const TVectorD &eval = eig.GetEigenValuesRe();
+  if ((eig.GetEigenValuesIm()).Norm2Sqr() != 0.0) {
+    std::cout << "fit_ellipse : eigenvalues have nonzero imaginary parts!" << std::endl;
+    return ellipse;
+  }
+  // evaluate a’Ca (in order to find the eigenvector for min. pos. eigenvalue)
+  for (i = 0; i < 3; i++) {
+    tmp = 4.0 * evec[0][i] * evec[2][i] - evec[1][i] * evec[1][i];
+    if (tmp > 0.0) break;
+  }
+  if (i > 2) {
+    std::cout << "fit_ellipse : no min. pos. eigenvalue found!" << std::endl;
+    // i = 2;
+    return ellipse;
+  }
+  // eigenvector for min. pos. eigenvalue
+  TVectorD a1(TMatrixDColumn_const(evec, i));
+  tmp = a1.Norm2Sqr();
+  if (tmp > 0.0) {
+    a1 *= 1.0 / std::sqrt(tmp); // normalize this eigenvector
+  } else {
+    std::cout << "fit_ellipse : eigenvector for min. pos. eigenvalue is NULL!" << std::endl;
+    return ellipse;
+  }
+  TVectorD a2(T * a1);
+
+  // ellipse coefficients
+  ellipse.ResizeTo(8);
+  ellipse[0] = X0; // "X0"
+  ellipse[1] = Y0; // "Y0"
+  ellipse[2] = a1[0]; // "A"
+  ellipse[3] = a1[1]; // "B"
+  ellipse[4] = a1[2]; // "C"
+  ellipse[5] = a2[0]; // "D"
+  ellipse[6] = a2[1]; // "E"
+  ellipse[7] = a2[2]; // "F"
+
+  return ellipse;
+}

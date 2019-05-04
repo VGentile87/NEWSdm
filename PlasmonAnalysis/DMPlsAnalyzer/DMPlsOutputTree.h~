@@ -1,0 +1,19 @@
+#if !defined (__CINT__) || defined (__MAKECINT__)
+#include "Rtypes.h"
+#endif
+
+#include "myData.h"
+#include "TH1F.h"
+#include "TMath.h"
+#include "TCanvas.h"
+#include "TMultiGraph.h"
+#include "TTree.h"
+#include "TFile.h"
+#include "TStyle.h"
+#include <vector>
+#include <iostream>
+
+using namespace std;
+const double pi=TMath::Pi();
+
+

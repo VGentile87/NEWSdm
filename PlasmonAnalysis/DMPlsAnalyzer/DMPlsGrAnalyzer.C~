@@ -1,0 +1,131 @@
+#include "DMPlsGrAnalyzer.h"
+#include <cmath>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+
+using namespace std;
+
+std::tuple<float,float,float,float,float,float> DMPlsGrAnalyzer::borders(int hid, double ld_area[][4], float fid_cut_par)
+{
+
+  float grOx, grOy, grRx, grRy, grNpx, fid_cut;
+  
+  grOx=(ld_area[hid][2]+ld_area[hid][0])/2.;
+  grOy=(ld_area[hid][3]+ld_area[hid][1])/2.;
+  grRx=(ld_area[hid][2]-ld_area[hid][0])/2.;
+  grRy=(ld_area[hid][3]-ld_area[hid][1])/2.;
+  grNpx=(ld_area[hid][2]-ld_area[hid][0])*(ld_area[hid][3]-ld_area[hid][1]);
+  fid_cut=fid_cut_par*TMath::Sqrt(grNpx/TMath::Pi());//*((x_pix_size-y_pix_size)/2.);
+
+  return std::make_tuple(grOx,grOy,grRx,grRy,grNpx,fid_cut);
+}
+
+
+std::tuple<bool,std::array<float,4>,float,float,float,float> DMPlsGrAnalyzer::nearby_ld_area_cut(int hid, float vx, float vy, float grOx, float grOy, float fiducial_cut, float len_view_x, float len_view_y)
+{
+
+  bool ldust;
+  int  min_area_x, min_area_y, max_area_x, max_area_y;
+  std::array <float,4> corners={};
+  
+  ldust=true;
+  corners[0]=grOx+vx-fiducial_cut;
+  corners[1]=grOy+vy-fiducial_cut;
+  corners[2]=grOx+vx+fiducial_cut;
+  corners[3]=grOy+vy+fiducial_cut;
+  min_area_x = TMath::Ceil((len_view_x/2. + corners[0]-vx)*100) + 1;
+  min_area_y = TMath::Ceil((len_view_y/2. + corners[1]-vy)*100) + 1;
+  max_area_x = TMath::Ceil((len_view_x/2. + corners[2]-vx)*100) + 1;
+  max_area_y = TMath::Ceil((len_view_y/2. + corners[3]-vy)*100) + 1;
+
+  return std::make_tuple(ldust,corners,min_area_x,min_area_y,max_area_x,max_area_y);
+    
+}
+
+
+std::tuple<bool,std::array<float,4>,float,float,float,float> DMPlsGrAnalyzer::z_corr(int hid, int nCopy, int ipol_gr, float fr_z, float *bfc_zfr, Long64_t cl_, int fr_id, int cl_id, int gr_id, int cl_igr, int cl_flags,   )
+{
+  
+
+  ///// GAP Z (VIBRATION OR ENCODER FAULTS AND BFCFR GAP) //////////////////////
+  //Double_t zbfcl[nCopy];//={};	
+  Double_t *zbfcl = new Double_t[nCopy];
+  Double_t *zbfcl2 = new Double_t[nCopy];
+  Int_t iCopy=0;
+  float gr_gap_z=-100;
+  float gr_gap_z2=-100;
+  Int_t tmp_nfr[npol]={0,0,0,0,0,0,0,0};
+  Int_t tmp_clfr[npol]={-1,-1,-1,-1,-1,-1,-1,-1};
+  Int_t ifr=0;
+  
+  for(int jn=0;jn<npol;jn++){
+    if(ipol_gr!=-1){
+      zbfcl[iCopy]=fr_z;
+      iCopy++;
+    }
+  }
+  if(nCopy!=0)gr_gap_z = TMath::MaxElement(nCopy,zbfcl) - TMath::MinElement(nCopy,zbfcl);
+  
+  ///// CORRECTION OF BFC FRAME //////////////////////////////////  (correggo i frame con diverso zeta rispetto alla popolazione dominante)
+ 
+  
+  for(int jn=0;jn<npol;jn++){
+    bool match_fr=false;               // booleano
+    if(ipol_gr!=-1 && jn==0){  // se la polarizzazione è 0
+      tmp_clfr[ifr]=bfc_zfr[jn];       // il tmp frz è il bfczfr di 0
+      tmp_nfr[ifr]++;                  // è di partenza sempre 1 (numero di frame uguali)
+      ifr++;                           // numero di frame tra i bfcfr (iframe diventa 1 (numero minimo di frame))
+    }
+
+    for(int kn=0;kn<ifr;kn++){         
+      if(ipol_gr!=-1 && jn>0 && bfc_zfr[jn]==tmp_clfr[kn]){  // solo pol diverse da 0 e con frame uguale al frame della pol jn-esima
+	tmp_nfr[kn]++;    // conta numero di frame uguali al frame della polarizzazione iesima, quando è uguale match_fr diventa true
+	match_fr=true;
+      }
+    }
+    
+    if(ipol_gr!=-1 && jn>0 && !match_fr){   // solo se match_fr è falso, cioè se diverso dal frame 0, guardo i frame successivi
+      ifr++;                                        // incrementa
+      tmp_clfr[ifr]=bfc_zfr[jn];                    // nuovo frame nel tmp
+      tmp_nfr[ifr]++;                               // tmp frame è 1 (molteplicità minima)
+    }
+  }
+
+  Int_t fr_sort[npol]={-1,-1,-1,-1,-1,-1,-1,-1};   // fr_sort ordina in ordine decrescente per indice i molteplicità dei frame
+  TMath::Sort(npol,tmp_nfr,fr_sort);
+  Int_t nbfc_same_fr = TMath::MaxElement(npol,tmp_nfr);   // Indice di massima molteplicità tra i frame
+  Int_t max_fr = tmp_clfr[fr_sort[0]];                 // cerca il frame associato all'indice di massima molteplicità
+
+  if((nCopy-nbfc_same_fr)/(nCopy/2.)<1 && nCopy>=5){  // start correction (algoritmo di correzione, solo per collezioni con almeno 5 elementi) 
+    /// start cluster
+    for(int jn=0; jn<cl_;jn++){	 
+      if(cl_igr==gr_id  && cl_flags==0){              // cerco tra i cluster associati al grano
+	if(fr_id==max_fr && bfc_zfr!=max_fr){         // se il bfclfr non coincide con quello di massima molteplicità
+	  ipol_gr[in][cl_ipol[jn]]=cl_id;                          // rimpiazza quest'ultimo al posto del precedente
+	  bfc_ifr[cl_ipol[jn]]=cl_ifr[ipol_gr[in][cl_ipol[jn]]];              // frame
+	  bfc_zfr[cl_ipol[jn]]=fr_iz[cl_ifr[ipol_gr[in][cl_ipol[jn]]]];
+	  bfc_gap[in]=1;                                               // segnalo che c'era un gap nei bfclfr
+	}
+      }	  
+    } // end cluster  
+  } ///// end correction
+  if((nCopy-nbfc_same_fr)==0 && nCopy!=0)bfc_gap[in]=0;           // gap zero se la molteplicità massima è uguale al numero di copie
+  //cout << "gfsdff "<< bfc_gap[in] << endl;
+  ////////////////////////////////////////////////////////////////   end correction bfcfr
+
+
+  ///// GAP Z (CROSS-CHECK BFC_GAP2) ---> controllo se la correzione ha avuto un effetto desiderato 	
+  iCopy=0;
+  for(int jn=0;jn<npol;jn++){
+    if(ipol_gr!=-1){
+      zbfcl2[iCopy]=fr_z;      
+      iCopy++;
+    }
+  }
+  if(nCopy!=0)gr_gap_z2 = TMath::MaxElement(nCopy,zbfcl2) - TMath::MinElement(nCopy,zbfcl2);  
+  
+  delete [] zbfcl;
+  delete [] zbfcl2; 
+}

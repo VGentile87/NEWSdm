@@ -1,0 +1,25 @@
+#include "DMPlsMtAnalyzer.h"
+#include <cmath>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+
+using namespace std;
+
+std::tuple<float,float,float,float,float,float> DMPlsMtAnalyzer::borders(int hid, double ld_area[][4], float fid_cut_par)
+{
+
+  float grOx, grOy, grRx, grRy, grNpx, fid_cut;
+  
+  grOx=(ld_area[hid][2]+ld_area[hid][0])/2.;
+  grOy=(ld_area[hid][3]+ld_area[hid][1])/2.;
+  grRx=(ld_area[hid][2]-ld_area[hid][0])/2.;
+  grRy=(ld_area[hid][3]-ld_area[hid][1])/2.;
+  grNpx=(ld_area[hid][2]-ld_area[hid][0])*(ld_area[hid][3]-ld_area[hid][1]);
+  fid_cut=fid_cut_par*TMath::Sqrt(grNpx/TMath::Pi());//*((x_pix_size-y_pix_size)/2.);
+
+  return std::make_tuple(grOx,grOy,grRx,grRy,grNpx,fid_cut);
+}
+
+
