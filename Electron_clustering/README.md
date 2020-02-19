@@ -8,6 +8,6 @@ A threshold for the visibility of small clusters is required.
 
 Usage:
 
-root -l 
+root -l  
 .L Make_Tree_test.C+  
 myrun()
